@@ -23,7 +23,19 @@ source venv/bin/activate
 pip install -r requirements.txt
 ```
 
-### FastAPI Server Usage
+### Rich Terminal Interface (Recommended for Local Development)
+```bash
+# Live dashboard with real-time updates
+python main.py dashboard --symbol BTCUSDT --balance 10000
+
+# Interactive command-line interface
+python main.py interactive --symbol BTCUSDT --balance 10000
+
+# Quick market analysis
+python main.py analyze --symbol BTCUSDT --strategy rsi_macd
+```
+
+### FastAPI Server Usage (Production/API Access)
 ```bash
 # Start the API server locally
 uvicorn api_server:app --reload --host 0.0.0.0 --port 8000
@@ -33,21 +45,6 @@ uvicorn api_server:app --host 0.0.0.0 --port 8000
 
 # Railway deployment (automatic)
 # Railway will use: uvicorn api_server:app --host 0.0.0.0 --port $PORT
-```
-
-### CLI Usage (Legacy)
-```bash
-# Analyze market for a specific symbol
-python main.py analyze --symbol BTCUSDT --strategy rsi_macd
-
-# Run the trading bot continuously
-python main.py run --symbol BTCUSDT --strategy rsi_macd --interval 60
-
-# Run backtest on historical data
-python main.py backtest --symbol BTCUSDT --strategy rsi_macd
-
-# List available strategies
-python main.py strategies
 ```
 
 ### Development Workflow
@@ -65,28 +62,42 @@ python -m pytest -v  # verbose output
 
 ```
 crypto_trade/
+├── trading_service.py   # Core trading service (business logic)
+├── models.py            # Shared Pydantic models for data validation
+├── events.py            # Event-driven system for loose coupling
+├── main.py              # Rich terminal interface (CLI)
 ├── api_server.py        # FastAPI REST API server with WebSocket support
-├── main.py              # CLI application (legacy)
 ├── config.py            # Centralized configuration management
 ├── binance_client.py    # Binance API wrapper with error handling
 ├── data_analyzer.py     # Technical analysis and market data processing
 ├── strategy.py          # Trading strategy implementations and framework
 ├── portfolio.py         # Portfolio management and risk management
 ├── logger.py            # Centralized logging configuration
-├── requirements.txt     # Python dependencies with FastAPI
+├── requirements.txt     # Python dependencies with FastAPI and Rich UI
 ├── Procfile             # Railway deployment configuration
 ├── railway.json         # Railway deployment settings
 ├── runtime.txt          # Python version specification
 ├── .env.example         # Environment variables template
 ├── .gitignore          # Git ignore rules
+├── main_legacy.py       # Legacy CLI (backup)
+├── api_server_legacy.py # Legacy API server (backup)
 ├── venv/               # Python virtual environment (excluded from version control)
 └── logs/               # Application logs (created automatically)
 ```
 
 ## Core Components
 
-- **TradingBotAPI**: FastAPI server class that orchestrates all components
-- **WebSocketManager**: Manages real-time WebSocket connections for live updates
+### Core Business Logic
+- **TradingService**: Central trading engine with all business logic (shared by CLI and API)
+- **EventBus**: Thread-safe event system for loose coupling between components
+- **Models**: Shared Pydantic models for data validation and type safety
+
+### User Interfaces
+- **TradingCLI**: Rich terminal interface with live dashboard and interactive commands
+- **FastAPI Server**: REST API with WebSocket support for web/mobile clients
+- **WebSocketManager**: Real-time updates for connected clients
+
+### Supporting Components
 - **BinanceClient**: Handles all Binance API interactions with error handling
 - **DataAnalyzer**: Processes market data and calculates technical indicators
 - **StrategyManager**: Manages multiple trading strategies (RSI+MACD, Bollinger Bands)
@@ -152,11 +163,22 @@ ws.onmessage = (event) => {
 
 ## Trading Application Specifics
 
+- **Architecture**: Clean separation between core trading service and UI interfaces
+- **Event-Driven**: Real-time updates using thread-safe event system
+- **Dual Interface**: Rich terminal UI for local development, REST API for production
 - **Default Mode**: Application runs in testnet mode by default for safety
 - **Risk Management**: Built-in position sizing, stop losses, and daily loss limits
 - **Strategies Available**: RSI+MACD combination and Bollinger Bands mean reversion
 - **Logging**: Comprehensive logging with separate files for trading, errors, and general logs
 - **Real Trading**: Requires explicit confirmation and environment variable changes
+
+## Architecture Benefits
+
+- **Single Source of Truth**: Core `TradingService` contains all business logic
+- **Testable**: Core service can be tested independently of UI interfaces
+- **Flexible Deployment**: Run as CLI locally or API server on Railway
+- **Real-time Updates**: Event system provides live updates to both interfaces
+- **Type Safety**: Shared Pydantic models ensure data validation across components
 
 ## Setup Instructions
 
@@ -164,8 +186,9 @@ ws.onmessage = (event) => {
 1. Copy `.env.example` to `.env` and configure with your Binance API credentials
 2. Ensure TRADING_MODE is set to "testnet" for development
 3. Install dependencies: `pip install -r requirements.txt`
-4. Start API server: `uvicorn api_server:app --reload --host 0.0.0.0 --port 8000`
-5. Access API documentation: `http://localhost:8000/docs`
+4. **Rich Terminal UI**: `python main.py dashboard --symbol BTCUSDT`
+5. **API Server**: `uvicorn api_server:app --reload --host 0.0.0.0 --port 8000`
+6. Access API documentation: `http://localhost:8000/docs`
 
 ### Railway.com Deployment
 1. Connect your GitHub repository to Railway
