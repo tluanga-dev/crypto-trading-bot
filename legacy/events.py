@@ -168,14 +168,62 @@ class EventPublisher:
     def __init__(self, event_bus: EventBus):
         self.event_bus = event_bus
     
-    def publish_market_data(self, symbol: str, price: float, volume: Optional[float] = None):
+    def publish_market_data(self, symbol: str, price: float, volume: Optional[float] = None, timestamp: Optional[datetime] = None):
         """Publish market data update event."""
         event = MarketDataEvent(
             symbol=symbol,
             price=price,
             volume=volume,
-            timestamp=datetime.now(),
+            timestamp=timestamp or datetime.now(),
             data={"symbol": symbol, "price": price, "volume": volume}
+        )
+        self.event_bus.publish(event)
+    
+    def publish_kline_data(self, symbol: str, interval: str, open_price: float, high_price: float, 
+                          low_price: float, close_price: float, volume: float, timestamp: datetime):
+        """Publish kline/candlestick data event."""
+        event = TradingEvent(
+            event_type="kline_data",
+            timestamp=timestamp,
+            data={
+                "symbol": symbol,
+                "interval": interval,
+                "open": open_price,
+                "high": high_price,
+                "low": low_price,
+                "close": close_price,
+                "volume": volume,
+                "timestamp": timestamp
+            }
+        )
+        self.event_bus.publish(event)
+    
+    def publish_order_book_update(self, symbol: str, bids: List[tuple], asks: List[tuple], timestamp: datetime):
+        """Publish order book update event."""
+        event = TradingEvent(
+            event_type="order_book_update",
+            timestamp=timestamp,
+            data={
+                "symbol": symbol,
+                "bids": bids,
+                "asks": asks,
+                "timestamp": timestamp
+            }
+        )
+        self.event_bus.publish(event)
+    
+    def publish_trade_data(self, symbol: str, price: float, quantity: float, is_buyer_maker: bool, timestamp: datetime):
+        """Publish individual trade data event."""
+        event = TradingEvent(
+            event_type="trade_data",
+            timestamp=timestamp,
+            data={
+                "symbol": symbol,
+                "price": price,
+                "quantity": quantity,
+                "is_buyer_maker": is_buyer_maker,
+                "timestamp": timestamp
+            }
         )
         self.event_bus.publish(event)
     
@@ -286,11 +334,36 @@ class EventSubscriber:
         else:
             self.event_bus.subscribe("system_event", handler)
     
+    def on_kline_data(self, handler: Callable[[TradingEvent], None], async_handler: bool = False):
+        """Subscribe to kline/candlestick data events."""
+        self._handlers.append(handler)
+        if async_handler:
+            self.event_bus.subscribe_async("kline_data", handler)
+        else:
+            self.event_bus.subscribe("kline_data", handler)
+    
+    def on_order_book_update(self, handler: Callable[[TradingEvent], None], async_handler: bool = False):
+        """Subscribe to order book update events."""
+        self._handlers.append(handler)
+        if async_handler:
+            self.event_bus.subscribe_async("order_book_update", handler)
+        else:
+            self.event_bus.subscribe("order_book_update", handler)
+    
+    def on_trade_data(self, handler: Callable[[TradingEvent], None], async_handler: bool = False):
+        """Subscribe to individual trade data events."""
+        self._handlers.append(handler)
+        if async_handler:
+            self.event_bus.subscribe_async("trade_data", handler)
+        else:
+            self.event_bus.subscribe("trade_data", handler)
+    
     def unsubscribe_all(self):
         """Unsubscribe from all events."""
         for handler in self._handlers:
             for event_type in ["market_data", "signal_generated", "position_opened", 
-                             "position_closed", "risk_event", "system_event"]:
+                             "position_closed", "risk_event", "system_event",
+                             "kline_data", "order_book_update", "trade_data"]:
                 self.event_bus.unsubscribe(event_type, handler)
         self._handlers.clear()
 
@@ -321,3 +394,6 @@ class EventTypes:
     POSITION_CLOSED = "position_closed"
     RISK_EVENT = "risk_event"
     SYSTEM_EVENT = "system_event"
+    KLINE_DATA = "kline_data"
+    ORDER_BOOK_UPDATE = "order_book_update"
+    TRADE_DATA = "trade_data"

@@ -21,28 +21,54 @@ wheels/
 *.egg
 MANIFEST
 
-# Virtual Environment
+# Virtual environments
+backend/venv/
+backend/env/
+backend/ENV/
+backend/env.bak/
+backend/venv.bak/
 venv/
 env/
 ENV/
 
-# Environment Variables
+# Environment variables
 .env
 .env.local
-.env.production
+.env.development.local
+.env.test.local
+.env.production.local
+backend/.env
+frontend/.env
 
 # Logs
 logs/
 *.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
 
-# Trading Data
-*.db
-*.sqlite
-*.sqlite3
+# Backend specific
+backend/logs/
+backend/*.db
+backend/*.sqlite
+backend/*.sqlite3
 
-# Trade History Exports
-trade_history_*.csv
-backtest_results_*.json
+# Frontend specific - Next.js
+frontend/.next/
+frontend/out/
+frontend/build/
+frontend/node_modules/
+frontend/.eslintcache
+
+# Node.js dependencies
+node_modules/
+jspm_packages/
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+frontend/coverage/
 
 # IDE
 .vscode/
@@ -63,11 +89,18 @@ Thumbs.db
 # Jupyter Notebooks
 .ipynb_checkpoints
 
-# pytest
-.pytest_cache/
-.coverage
-
 # mypy
 .mypy_cache/
 .dmypy.json
 dmypy.json
+
+# Redis dump
+dump.rdb
+
+# Temporary folders
+tmp/
+temp/
+
+# Backup files
+*.bak
+*.tmp

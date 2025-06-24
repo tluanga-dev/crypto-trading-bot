@@ -75,7 +75,7 @@ class DataAnalyzer:
             df['atr'] = ta.volatility.average_true_range(df['high'], df['low'], df['close'])
             
             # Volume indicators
-            df['volume_sma'] = ta.volume.volume_sma(df['close'], df['volume'])
+            df['volume_sma'] = df['volume'].rolling(window=20).mean()
             df['volume_weighted_average_price'] = ta.volume.volume_weighted_average_price(
                 df['high'], df['low'], df['close'], df['volume']
             )

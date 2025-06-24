@@ -7,6 +7,9 @@ Uses the core trading service with beautiful terminal UI
 import asyncio
 import sys
 import time
+import select
+import termios
+import tty
 from typing import Dict, Optional
 from datetime import datetime, timedelta
 
@@ -22,6 +25,8 @@ from rich.prompt import Confirm
 from rich.columns import Columns
 from rich.align import Align
 from rich.status import Status
+from rich.bar import Bar
+from rich.rule import Rule
 
 # Import our core service and models
 from trading_service import TradingService, create_trading_service
@@ -48,6 +53,10 @@ class TradingCLI:
         self.latest_analysis: Optional[MarketAnalysis] = None
         self.latest_portfolio = None
         self.latest_positions = []
+        self.latest_price_data = []
+        self.price_history = []  # Store recent price updates
+        self.current_tab = 0  # 0: Overview, 1: Candlestick, 2: Live Data
+        self.tab_names = ["Overview", "Candlestick", "Live Data"]
         self.recent_events = []
         
         # Subscribe to events
@@ -196,6 +205,148 @@ class TradingCLI:
         
         return Panel(portfolio_table, title="Portfolio Summary", border_style="green")
     
+    def create_live_price_panel(self) -> Panel:
+        """Create live 1-minute price data panel."""
+        if not self.latest_price_data:
+            return Panel("Loading live data...", title="Live 1-Min Data", border_style="yellow")
+        
+        # Price data table
+        price_table = Table(show_header=True, show_edge=False, pad_edge=False)
+        price_table.add_column("Time", style="cyan", width=8)
+        price_table.add_column("Open", style="white", width=10, justify="right")
+        price_table.add_column("High", style="green", width=10, justify="right")
+        price_table.add_column("Low", style="red", width=10, justify="right")
+        price_table.add_column("Close", style="bold white", width=10, justify="right")
+        price_table.add_column("Volume", style="blue", width=12, justify="right")
+        
+        # Add recent price data
+        for data in self.latest_price_data[-8:]:  # Show last 8 minutes
+            # Color code the close price based on trend
+            if len(self.latest_price_data) > 1:
+                prev_idx = self.latest_price_data.index(data) - 1
+                if prev_idx >= 0:
+                    prev_close = self.latest_price_data[prev_idx]['close']
+                    close_color = "green" if data['close'] > prev_close else "red" if data['close'] < prev_close else "white"
+                else:
+                    close_color = "white"
+            else:
+                close_color = "white"
+            
+            price_table.add_row(
+                data['time'],
+                f"{data['open']:.4f}",
+                f"{data['high']:.4f}",
+                f"{data['low']:.4f}",
+                f"[{close_color}]{data['close']:.4f}[/{close_color}]",
+                f"{data['volume']:.0f}"
+            )
+        
+        # Add price trend indicator
+        if len(self.price_history) >= 2:
+            trend_direction = "📈" if self.price_history[-1] > self.price_history[-2] else "📉"
+        else:
+            trend_direction = "➡️"
+        
+        title = f"Live 1-Min Data {trend_direction}"
+        return Panel(price_table, title=title, border_style="yellow")
+    
+    def create_candlestick_chart(self) -> Panel:
+        """Create Japanese candlestick chart using text characters."""
+        if not self.latest_price_data or len(self.latest_price_data) < 2:
+            return Panel("Loading candlestick data...", title="Japanese Candlestick Chart", border_style="cyan")
+        
+        # Create candlestick visualization
+        chart_lines = []
+        chart_lines.append("Time     Open     High     Low      Close    Candle")
+        chart_lines.append("─" * 60)
+        
+        # Use recent data (last 15 candles)
+        recent_data = self.latest_price_data[-15:] if len(self.latest_price_data) >= 15 else self.latest_price_data
+        
+        # Find min/max for scaling
+        all_prices = []
+        for data in recent_data:
+            all_prices.extend([data['high'], data['low']])
+        
+        if not all_prices:
+            return Panel("No price data available", title="Japanese Candlestick Chart", border_style="cyan")
+        
+        price_min = min(all_prices)
+        price_max = max(all_prices)
+        price_range = price_max - price_min if price_max > price_min else 1
+        
+        for i, data in enumerate(recent_data):
+            time_str = data['time']
+            open_price = data['open']
+            high_price = data['high']
+            low_price = data['low']
+            close_price = data['close']
+            
+            # Determine candle type
+            is_bullish = close_price > open_price
+            is_doji = abs(close_price - open_price) / open_price < 0.001
+            
+            # Create candlestick representation
+            if is_doji:
+                candle_char = "─"  # Doji
+                candle_color = "yellow"
+            elif is_bullish:
+                candle_char = "█"  # Bullish (green)
+                candle_color = "green"
+            else:
+                candle_char = "░"  # Bearish (red)
+                candle_color = "red"
+            
+            # Create wick representation
+            body_top = max(open_price, close_price)
+            body_bottom = min(open_price, close_price)
+            
+            wick_top = "│" if high_price > body_top else " "
+            wick_bottom = "│" if low_price < body_bottom else " "
+            
+            # Build visual candle
+            candle_visual = f"[{candle_color}]{wick_top}{candle_char}{wick_bottom}[/{candle_color}]"
+            
+            # Price change from previous candle
+            if i > 0:
+                prev_close = recent_data[i-1]['close']
+                change_pct = ((close_price - prev_close) / prev_close) * 100
+                change_str = f"({change_pct:+.2f}%)"
+                change_color = "green" if change_pct > 0 else "red" if change_pct < 0 else "white"
+            else:
+                change_str = ""
+                change_color = "white"
+            
+            line = f"{time_str}  {open_price:7.4f}  {high_price:7.4f}  {low_price:7.4f}  {close_price:7.4f}  {candle_visual} [{change_color}]{change_str}[/{change_color}]"
+            chart_lines.append(line)
+        
+        # Add legend
+        chart_lines.append("")
+        chart_lines.append("Legend:")
+        chart_lines.append("[green]█[/green] Bullish (Close > Open)   [red]░[/red] Bearish (Close < Open)   [yellow]─[/yellow] Doji (Open ≈ Close)")
+        chart_lines.append("│ Upper/Lower Wicks")
+        
+        chart_content = "\n".join(chart_lines)
+        return Panel(chart_content, title="Japanese Candlestick Chart (1-Min)", border_style="cyan")
+    
+    def create_tab_header(self) -> Panel:
+        """Create tab header for navigation."""
+        tab_parts = []
+        for i, tab_name in enumerate(self.tab_names):
+            if i == self.current_tab:
+                tab_parts.append(f"[bold white on blue] {tab_name} [/bold white on blue]")
+            else:
+                tab_parts.append(f"[dim] {tab_name} [/dim]")
+        
+        tab_text = "  ".join(tab_parts)
+        instructions = "[dim]Press [bold]1[/bold]/[bold]2[/bold]/[bold]3[/bold] to switch tabs, [bold]q[/bold] to quit[/dim]"
+        
+        return Panel(
+            f"{tab_text}\n{instructions}",
+            title="Navigation",
+            border_style="blue"
+        )
+    
     def create_positions_panel(self) -> Panel:
         """Create open positions panel."""
         if not self.latest_positions:
@@ -267,22 +418,65 @@ class TradingCLI:
         return Panel(status_table, title="System Status", border_style="white")
     
     def create_dashboard(self) -> Layout:
-        """Create the main dashboard layout."""
+        """Create the main dashboard layout with tabs."""
         layout = Layout()
         
         layout.split_column(
             Layout(name="header", size=3),
+            Layout(name="tabs", size=4),
             Layout(name="main", ratio=1),
             Layout(name="footer", size=3)
         )
         
-        layout["header"].update(
-            Align.center(
-                Text("🚀 Cryptocurrency Trading Bot", style="bold blue"),
-                vertical="middle"
-            )
+        # Add current time and update frequency to header
+        current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        update_status = "🔴 LIVE" if hasattr(self, 'latest_price_data') and self.latest_price_data else "🟡 Loading"
+        header_text = Text.assemble(
+            ("🚀 Crypto Trading Bot", "bold blue"),
+            (" | ", "dim"),
+            (f"{update_status}", "bold"),
+            (" | ", "dim"),
+            (f"Last Update: {current_time}", "dim"),
+            (" | ", "dim"),
+            (f"Symbol: {self.current_symbol}", "bold green")
         )
+        layout["header"].update(Align.center(header_text, vertical="middle"))
         
+        # Add tab navigation
+        layout["tabs"].update(self.create_tab_header())
+        
+        # Create tab content based on current tab
+        if self.current_tab == 0:  # Overview
+            self.create_overview_tab(layout)
+        elif self.current_tab == 1:  # Candlestick
+            self.create_candlestick_tab(layout)
+        elif self.current_tab == 2:  # Live Data
+            self.create_live_data_tab(layout)
+        
+        # Footer with controls
+        footer_text = Text.assemble(
+            ("Press ", "dim"),
+            ("1", "bold cyan"),
+            ("/", "dim"),
+            ("2", "bold cyan"),
+            ("/", "dim"),
+            ("3", "bold cyan"),
+            (" for tabs, ", "dim"),
+            ("q", "bold red"),
+            (" to quit, ", "dim"),
+            ("a", "bold green"),
+            (" to analyze, ", "dim"),
+            ("p", "bold yellow"),
+            (" to open position, ", "dim"),
+            ("c", "bold blue"),
+            (" to close position", "dim")
+        )
+        layout["footer"].update(Align.center(footer_text, vertical="middle"))
+        
+        return layout
+    
+    def create_overview_tab(self, layout: Layout):
+        """Create the overview tab layout."""
         layout["main"].split_row(
             Layout(name="left"),
             Layout(name="right")
@@ -298,22 +492,32 @@ class TradingCLI:
             Layout(self.create_events_panel(), name="events"),
             Layout(self.create_status_panel(), name="status")
         )
-        
-        # Footer with controls
-        footer_text = Text.assemble(
-            ("Press ", "dim"),
-            ("q", "bold red"),
-            (" to quit, ", "dim"),
-            ("a", "bold green"),
-            (" to analyze, ", "dim"),
-            ("p", "bold yellow"),
-            (" to open position, ", "dim"),
-            ("c", "bold blue"),
-            (" to close position", "dim")
+    
+    def create_candlestick_tab(self, layout: Layout):
+        """Create the candlestick chart tab layout."""
+        layout["main"].split_row(
+            Layout(name="chart", ratio=2),
+            Layout(name="side", ratio=1)
         )
-        layout["footer"].update(Align.center(footer_text, vertical="middle"))
         
-        return layout
+        layout["chart"].update(self.create_candlestick_chart())
+        
+        layout["side"].split_column(
+            Layout(self.create_market_panel(), name="market_info"),
+            Layout(self.create_portfolio_panel(), name="portfolio_info")
+        )
+    
+    def create_live_data_tab(self, layout: Layout):
+        """Create the live data tab layout."""
+        layout["main"].split_column(
+            Layout(self.create_live_price_panel(), name="live_table"),
+            Layout(name="bottom")
+        )
+        
+        layout["bottom"].split_row(
+            Layout(self.create_market_panel(), name="market"),
+            Layout(self.create_positions_panel(), name="positions")
+        )
     
     async def update_data(self):
         """Update dashboard data."""
@@ -330,46 +534,129 @@ class TradingCLI:
             # Get open positions
             self.latest_positions = self.trading_service.get_open_positions()
             
+            # Get live 1-minute data
+            await self.update_live_price_data()
+            
         except Exception as e:
             logger.error(f"Error updating data: {e}")
     
-    async def run_dashboard(self, symbol: str, update_interval: int = 10):
-        """Run the live dashboard."""
+    async def update_live_price_data(self):
+        """Update live 1-minute price data."""
+        try:
+            # Get recent 1-minute klines
+            klines = self.trading_service.binance_client.get_klines(
+                symbol=self.current_symbol,
+                interval='1m',
+                limit=20  # Last 20 minutes
+            )
+            
+            # Convert to readable format
+            self.latest_price_data = []
+            for kline in klines[-10:]:  # Show last 10 minutes
+                timestamp = datetime.fromtimestamp(int(kline[0]) / 1000)
+                self.latest_price_data.append({
+                    'time': timestamp.strftime('%H:%M:%S'),
+                    'open': float(kline[1]),
+                    'high': float(kline[2]),
+                    'low': float(kline[3]),
+                    'close': float(kline[4]),
+                    'volume': float(kline[5])
+                })
+            
+            # Update price history for trend
+            current_price = self.latest_price_data[-1]['close'] if self.latest_price_data else 0
+            self.price_history.append(current_price)
+            if len(self.price_history) > 50:  # Keep last 50 price points
+                self.price_history.pop(0)
+                
+        except Exception as e:
+            logger.error(f"Error updating live price data: {e}")
+    
+    def check_keyboard_input(self):
+        """Check for keyboard input without blocking."""
+        try:
+            if sys.stdin in select.select([sys.stdin], [], [], 0)[0]:
+                key = sys.stdin.read(1)
+                if key == '1':
+                    self.current_tab = 0
+                elif key == '2':
+                    self.current_tab = 1
+                elif key == '3':
+                    self.current_tab = 2
+                elif key.lower() == 'q':
+                    self.is_running = False
+                elif key.lower() == 'a':
+                    # Trigger analysis
+                    asyncio.create_task(self.analyze_command(self.current_symbol))
+                return key
+        except:
+            pass
+        return None
+    
+    async def run_dashboard(self, symbol: str, update_interval: int = 5):
+        """Run the live dashboard with tab support."""
         self.current_symbol = symbol
         self.is_running = True
         
-        console.print(f"[green]🚀 Starting trading dashboard for {symbol}[/green]")
+        console.print(f"[green]🚀 Starting tabbed trading dashboard for {symbol}[/green]")
         console.print("[dim]Loading initial data...[/dim]")
+        console.print("[yellow]Press 1/2/3 to switch tabs, 'q' to quit[/yellow]")
         
-        # Initial data load
-        await self.update_data()
+        # Set terminal to non-blocking mode
+        old_settings = None
+        try:
+            old_settings = termios.tcgetattr(sys.stdin)
+            tty.setraw(sys.stdin.fileno())
+        except:
+            # Fallback for non-Unix systems
+            pass
         
-        # Start monitoring
-        asyncio.create_task(self.trading_service.start_monitoring(30))
-        
-        with Live(self.create_dashboard(), console=console, refresh_per_second=2) as live:
-            last_update = time.time()
+        try:
+            # Initial data load
+            await self.update_data()
             
-            while self.is_running:
+            # Start monitoring
+            asyncio.create_task(self.trading_service.start_monitoring(30))
+            
+            with Live(self.create_dashboard(), console=console, refresh_per_second=4) as live:
+                last_update = time.time()
+                
+                while self.is_running:
+                    try:
+                        # Check for keyboard input
+                        if old_settings is None:  # Fallback for non-Unix
+                            # Simple input check without blocking
+                            pass
+                        else:
+                            self.check_keyboard_input()
+                        
+                        # Update data periodically
+                        current_time = time.time()
+                        if current_time - last_update >= update_interval:
+                            await self.update_data()
+                            last_update = current_time
+                            self.last_update = datetime.now()
+                        
+                        # Update dashboard
+                        live.update(self.create_dashboard())
+                        
+                        # Short sleep to prevent high CPU usage
+                        await asyncio.sleep(0.3)
+                        
+                    except KeyboardInterrupt:
+                        self.is_running = False
+                        break
+                    except Exception as e:
+                        logger.error(f"Error in dashboard loop: {e}")
+                        await asyncio.sleep(1)
+        
+        finally:
+            # Restore terminal settings
+            if old_settings:
                 try:
-                    # Update data periodically
-                    current_time = time.time()
-                    if current_time - last_update >= update_interval:
-                        await self.update_data()
-                        last_update = current_time
-                    
-                    # Update dashboard
-                    live.update(self.create_dashboard())
-                    
-                    # Short sleep to prevent high CPU usage
-                    await asyncio.sleep(0.5)
-                    
-                except KeyboardInterrupt:
-                    self.is_running = False
-                    break
-                except Exception as e:
-                    logger.error(f"Error in dashboard loop: {e}")
-                    await asyncio.sleep(1)
+                    termios.tcsetattr(sys.stdin, termios.TCSADRAIN, old_settings)
+                except:
+                    pass
         
         # Cleanup
         self.trading_service.stop_monitoring()
@@ -380,7 +667,7 @@ class TradingCLI:
         self.current_symbol = symbol
         
         console.print(f"[green]🎮 Starting interactive mode for {symbol}[/green]")
-        console.print("[dim]Available commands: analyze, position, close, portfolio, strategies, quit[/dim]")
+        console.print("[dim]Available commands: analyze, position, close, portfolio, strategies, 1/2/3 (tabs), quit[/dim]")
         
         while True:
             try:
@@ -391,6 +678,15 @@ class TradingCLI:
                 
                 elif command in ['analyze', 'a']:
                     await self.analyze_command(symbol)
+                
+                elif command in ['tab1', '1']:
+                    console.print("[cyan]Switched to Overview tab (use 'python main.py dashboard' for tabbed interface)[/cyan]")
+                
+                elif command in ['tab2', '2']:
+                    console.print("[cyan]Switched to Candlestick tab (use 'python main.py dashboard' for tabbed interface)[/cyan]")
+                
+                elif command in ['tab3', '3']:
+                    console.print("[cyan]Switched to Live Data tab (use 'python main.py dashboard' for tabbed interface)[/cyan]")
                 
                 elif command in ['position', 'p']:
                     await self.position_command(symbol)

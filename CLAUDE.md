@@ -4,51 +4,90 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-This is a cryptocurrency trading application built with Python. The project is in early development stage.
+This is a modern cryptocurrency trading platform with real-time market data visualization. The project has been refactored into a FastAPI backend and Next.js frontend architecture.
 
 ## Development Environment
 
-- Python virtual environment is located in `venv/`
-- Activate virtual environment: `source venv/bin/activate`
-- Deactivate virtual environment: `deactivate`
+- Backend: Python 3.8+ with FastAPI
+- Frontend: Node.js 18+ with Next.js 15
+- Database: Binance API (no local database required)
+
+## Project Structure
+
+```
+crypto_trade/
+├── backend/                 # FastAPI backend
+│   ├── app/
+│   │   ├── api/v1/         # REST API endpoints
+│   │   ├── core/           # Core functionality (config, WebSocket)
+│   │   ├── models/         # Pydantic data models
+│   │   ├── services/       # Business logic services
+│   │   └── main.py         # FastAPI application entry point
+│   └── requirements.txt    # Python dependencies
+│
+├── frontend/               # Next.js frontend
+│   ├── app/               # Next.js App Router
+│   ├── components/        # React components
+│   ├── contexts/          # Context API providers
+│   ├── types/            # TypeScript type definitions
+│   └── package.json      # Node.js dependencies
+│
+└── legacy/               # Old trading bot files (archived)
+```
 
 ## Common Commands
 
-### Environment Setup
+### Backend Setup
 ```bash
-# Activate virtual environment
-source venv/bin/activate
-
-# Install dependencies
+cd backend
+python -m venv venv
+source venv/bin/activate  # On Windows: venv\Scripts\activate
 pip install -r requirements.txt
 ```
 
-### Rich Terminal Interface (Recommended for Local Development)
+### Frontend Setup
 ```bash
-# Live dashboard with real-time updates
-python main.py dashboard --symbol BTCUSDT --balance 10000
-
-# Interactive command-line interface
-python main.py interactive --symbol BTCUSDT --balance 10000
-
-# Quick market analysis
-python main.py analyze --symbol BTCUSDT --strategy rsi_macd
+cd frontend
+npm install
 ```
 
-### FastAPI Server Usage (Production/API Access)
+### Running the Application
+
+#### Backend (API Server)
 ```bash
-# Start the API server locally
-uvicorn api_server:app --reload --host 0.0.0.0 --port 8000
+cd backend
+uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 
-# Start with production settings
-uvicorn api_server:app --host 0.0.0.0 --port 8000
+# API will be available at: http://localhost:8000
+# API documentation: http://localhost:8000/docs
+```
 
-# Railway deployment (automatic)
-# Railway will use: uvicorn api_server:app --host 0.0.0.0 --port $PORT
+#### Frontend (Web Application)
+```bash
+cd frontend
+npm run dev
+
+# Web app will be available at: http://localhost:3000
+```
+
+#### Production Deployment
+```bash
+# Backend
+cd backend
+uvicorn app.main:app --host 0.0.0.0 --port 8000
+
+# Frontend
+cd frontend
+npm run build
+npm start
 ```
 
 ### Development Workflow
+
+#### Backend
 ```bash
+cd backend
+
 # Code formatting and linting
 black .
 flake8 .
@@ -58,95 +97,102 @@ python -m pytest
 python -m pytest -v  # verbose output
 ```
 
-## Project Structure
+#### Frontend
+```bash
+cd frontend
 
-```
-crypto_trade/
-├── trading_service.py   # Core trading service (business logic)
-├── models.py            # Shared Pydantic models for data validation
-├── events.py            # Event-driven system for loose coupling
-├── main.py              # Rich terminal interface (CLI)
-├── api_server.py        # FastAPI REST API server with WebSocket support
-├── config.py            # Centralized configuration management
-├── binance_client.py    # Binance API wrapper with error handling
-├── data_analyzer.py     # Technical analysis and market data processing
-├── strategy.py          # Trading strategy implementations and framework
-├── portfolio.py         # Portfolio management and risk management
-├── logger.py            # Centralized logging configuration
-├── requirements.txt     # Python dependencies with FastAPI and Rich UI
-├── Procfile             # Railway deployment configuration
-├── railway.json         # Railway deployment settings
-├── runtime.txt          # Python version specification
-├── .env.example         # Environment variables template
-├── .gitignore          # Git ignore rules
-├── main_legacy.py       # Legacy CLI (backup)
-├── api_server_legacy.py # Legacy API server (backup)
-├── venv/               # Python virtual environment (excluded from version control)
-└── logs/               # Application logs (created automatically)
+# Linting and formatting
+npm run lint
+npm run lint:fix
+
+# Type checking
+npx tsc --noEmit
+
+# Build for production
+npm run build
 ```
 
 ## Core Components
 
-### Core Business Logic
-- **TradingService**: Central trading engine with all business logic (shared by CLI and API)
-- **EventBus**: Thread-safe event system for loose coupling between components
-- **Models**: Shared Pydantic models for data validation and type safety
+### Backend Components (FastAPI)
+- **API Endpoints**: RESTful API for market data, symbols, and WebSocket management
+- **WebSocket Manager**: Real-time Binance data streaming with auto-reconnection
+- **Binance Service**: Async integration with Binance API
+- **Data Models**: Pydantic models for type safety and validation
+- **Configuration**: Environment-based settings management
 
-### User Interfaces
-- **TradingCLI**: Rich terminal interface with live dashboard and interactive commands
-- **FastAPI Server**: REST API with WebSocket support for web/mobile clients
-- **WebSocketManager**: Real-time updates for connected clients
+### Frontend Components (Next.js)
+- **Context Providers**:
+  - **WebSocketContext**: Manages WebSocket connection and message handling
+  - **MarketDataContext**: Stores and manages all market data
+  - **TabsContext**: Handles multi-tab functionality with persistence
+- **UI Components**:
+  - **CryptoSelector**: Symbol selection with search and favorites
+  - **CandlestickChart**: TradingView Lightweight Charts integration
+  - **TimeframeSelector**: Multiple timeframe support (1m, 5m, 15m, 30m, 1h, 4h, 1d)
+  - **TabManager**: Multi-tab interface for monitoring multiple symbols
+  - **PriceDisplay**: Real-time price updates with animations
 
-### Supporting Components
-- **BinanceClient**: Handles all Binance API interactions with error handling
-- **DataAnalyzer**: Processes market data and calculates technical indicators
-- **StrategyManager**: Manages multiple trading strategies (RSI+MACD, Bollinger Bands)
-- **Portfolio**: Tracks positions, calculates PnL, and manages risk
-- **Config**: Centralized configuration using environment variables
+### Key Features
+- **Real-time Updates**: WebSocket streaming for live price and chart data
+- **Multi-symbol Support**: Monitor up to 10 symbols simultaneously in tabs
+- **Professional Charts**: Candlestick charts with volume and technical indicators
+- **Responsive Design**: Works on desktop and mobile devices
+- **Favorites System**: Save frequently watched symbols
+- **Symbol Search**: Quick symbol lookup with autocomplete
 
 ## REST API Endpoints
 
-### Market Analysis
-- `GET /api/analyze/{symbol}` - Analyze market data for a symbol
+### Symbol Management
+- `GET /api/v1/symbols` - Get all trading symbols with pagination
+- `GET /api/v1/symbols/search?q={query}` - Search symbols by query
+- `GET /api/v1/symbols/popular` - Get popular trading symbols
+- `GET /api/v1/symbols/{symbol}` - Get detailed symbol information
+
+### Market Data
+- `GET /api/v1/market/{symbol}` - Get current market data for a symbol
+- `GET /api/v1/market/{symbol}/klines` - Get candlestick data with timeframe
+- `GET /api/v1/market/{symbol}/orderbook` - Get order book depth
+- `GET /api/v1/market/{symbol}/trades` - Get recent trades
+- `POST /api/v1/market/batch` - Get market data for multiple symbols
+
+### System Endpoints
 - `GET /health` - Health check endpoint
-
-### Portfolio Management
-- `GET /api/portfolio` - Get portfolio status and metrics
-- `GET /api/positions` - Get all open positions
-
-### Trading Operations
-- `POST /api/positions` - Open new position
-- `DELETE /api/positions/{symbol}` - Close position
-
-### Strategy Management
-- `GET /api/strategies` - List available strategies
-- `POST /api/strategies/{strategy_name}` - Set active strategy
+- `GET /` - API information
 
 ### Real-time WebSocket
-- `WS /ws/live-data` - Real-time market data and portfolio updates
+- `WS /ws/{client_id}` - Real-time market data streaming
 
 ## API Usage Examples
 
-### Analyze Market
+### Get Market Data
 ```bash
-curl -X GET "https://your-railway-app.railway.app/api/analyze/BTCUSDT"
+curl -X GET "http://localhost:8000/api/v1/market/BTCUSDT"
 ```
 
-### Get Portfolio
+### Search Symbols
 ```bash
-curl -X GET "https://your-railway-app.railway.app/api/portfolio"
+curl -X GET "http://localhost:8000/api/v1/symbols/search?q=BTC"
 ```
 
-### Open Position
+### Get Candlestick Data
 ```bash
-curl -X POST "https://your-railway-app.railway.app/api/positions" \
-  -H "Content-Type: application/json" \
-  -d '{"symbol": "BTCUSDT", "strategy": "rsi_macd"}'
+curl -X GET "http://localhost:8000/api/v1/market/BTCUSDT/klines?interval=5m&limit=100"
 ```
 
 ### WebSocket Connection (JavaScript)
 ```javascript
-const ws = new WebSocket('wss://your-railway-app.railway.app/ws/live-data');
+const ws = new WebSocket('ws://localhost:8000/ws/client_123');
+
+ws.onopen = () => {
+    // Subscribe to symbol updates
+    ws.send(JSON.stringify({
+        type: 'subscribe',
+        symbol: 'BTCUSDT',
+        timeframes: ['1m', '5m']
+    }));
+};
+
 ws.onmessage = (event) => {
     const data = JSON.parse(event.data);
     console.log('Received:', data);
@@ -155,61 +201,86 @@ ws.onmessage = (event) => {
 
 ## Security Considerations
 
-- Never commit API keys, private keys, or sensitive trading credentials
+- Never commit API keys or sensitive credentials
 - Use environment variables for configuration
 - Implement proper error handling for API calls
 - Consider rate limiting for exchange APIs
 - Validate all user inputs and API responses
+- Use CORS properly for production deployments
 
-## Trading Application Specifics
+## Application Architecture
 
-- **Architecture**: Clean separation between core trading service and UI interfaces
-- **Event-Driven**: Real-time updates using thread-safe event system
-- **Dual Interface**: Rich terminal UI for local development, REST API for production
-- **Default Mode**: Application runs in testnet mode by default for safety
-- **Risk Management**: Built-in position sizing, stop losses, and daily loss limits
-- **Strategies Available**: RSI+MACD combination and Bollinger Bands mean reversion
-- **Logging**: Comprehensive logging with separate files for trading, errors, and general logs
-- **Real Trading**: Requires explicit confirmation and environment variable changes
+- **Separation of Concerns**: Clean split between backend API and frontend UI
+- **Real-time Communication**: WebSocket streaming for live data updates
+- **Type Safety**: Full TypeScript support in frontend, Pydantic models in backend
+- **State Management**: React Context API for predictable state updates
+- **Responsive Design**: Mobile-first approach with desktop enhancements
+- **Error Handling**: Comprehensive error boundaries and user feedback
 
 ## Architecture Benefits
 
-- **Single Source of Truth**: Core `TradingService` contains all business logic
-- **Testable**: Core service can be tested independently of UI interfaces
-- **Flexible Deployment**: Run as CLI locally or API server on Railway
-- **Real-time Updates**: Event system provides live updates to both interfaces
-- **Type Safety**: Shared Pydantic models ensure data validation across components
+- **Scalability**: Backend and frontend can be deployed independently
+- **Maintainability**: Clear separation between data layer and presentation layer
+- **Performance**: Efficient WebSocket streaming and optimized React rendering
+- **Developer Experience**: Hot reloading, TypeScript, and modern tooling
+- **User Experience**: Professional trading interface with real-time updates
 
 ## Setup Instructions
 
 ### Local Development
-1. Copy `.env.example` to `.env` and configure with your Binance API credentials
-2. Ensure TRADING_MODE is set to "testnet" for development
-3. Install dependencies: `pip install -r requirements.txt`
-4. **Rich Terminal UI**: `python main.py dashboard --symbol BTCUSDT`
-5. **API Server**: `uvicorn api_server:app --reload --host 0.0.0.0 --port 8000`
-6. Access API documentation: `http://localhost:8000/docs`
 
-### Railway.com Deployment
-1. Connect your GitHub repository to Railway
-2. Set environment variables in Railway dashboard:
-   - `BINANCE_API_KEY`
-   - `BINANCE_SECRET_KEY`
-   - `TRADING_MODE=testnet`
-   - Other variables from `.env.example`
-3. Railway will automatically deploy using `Procfile` and `railway.json`
-4. Your API will be available at: `https://your-app-name.railway.app`
+#### Backend Setup
+1. Navigate to backend directory: `cd backend`
+2. Create virtual environment: `python -m venv venv`
+3. Activate virtual environment: `source venv/bin/activate` (Windows: `venv\Scripts\activate`)
+4. Install dependencies: `pip install -r requirements.txt`
+5. Copy `.env.example` to `.env` and configure (optional for development)
+6. Start server: `uvicorn app.main:app --reload`
+7. Access API documentation: `http://localhost:8000/docs`
 
-### Static IP for Binance
-- Railway provides static IP addresses automatically
-- Add Railway's IP to your Binance API whitelist
-- Configure API restrictions in Binance for security
+#### Frontend Setup
+1. Navigate to frontend directory: `cd frontend`
+2. Install dependencies: `npm install`
+3. Start development server: `npm run dev`
+4. Access web application: `http://localhost:3000`
 
-## Technical Indicators Used
+### Environment Variables
 
-- **RSI**: Relative Strength Index for momentum
-- **MACD**: Moving Average Convergence Divergence for trend
-- **Bollinger Bands**: Price volatility and mean reversion
-- **Moving Averages**: SMA and EMA for trend confirmation
-- **Volume Analysis**: Volume-weighted average price
-- **Support/Resistance**: Dynamic levels based on price history
+#### Backend (.env)
+```
+BINANCE_API_KEY=your_api_key_here
+BINANCE_SECRET_KEY=your_secret_key_here
+BINANCE_TESTNET=true
+CORS_ORIGINS=["http://localhost:3000"]
+```
+
+#### Frontend
+```
+NEXT_PUBLIC_API_URL=http://localhost:8000
+NEXT_PUBLIC_WS_URL=ws://localhost:8000
+```
+
+### Production Deployment
+
+The application can be deployed to any cloud platform that supports:
+- Python/FastAPI applications (backend)
+- Node.js/Next.js applications (frontend)
+
+Popular options include Vercel, Netlify, Railway, Heroku, or AWS.
+
+## Technology Stack
+
+### Backend
+- **FastAPI**: Modern Python web framework
+- **WebSockets**: Real-time bidirectional communication
+- **Pydantic**: Data validation and settings management
+- **httpx**: Async HTTP client for Binance API
+- **python-binance**: Binance API wrapper
+
+### Frontend
+- **Next.js 15**: React framework with App Router
+- **TypeScript**: Static type checking
+- **TailwindCSS**: Utility-first CSS framework
+- **Lightweight Charts**: TradingView charting library
+- **Context API**: React state management
+- **Radix UI**: Headless UI components

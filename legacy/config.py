@@ -39,6 +39,10 @@ class Config:
     @classmethod
     def validate_required_config(cls) -> bool:
         """Validate that required configuration values are present."""
+        # Skip validation in demo mode
+        if cls.is_demo_mode():
+            return True
+            
         required_fields = ['BINANCE_API_KEY', 'BINANCE_SECRET_KEY']
         
         for field in required_fields:
@@ -51,6 +55,16 @@ class Config:
     def is_testnet_mode(cls) -> bool:
         """Check if application is running in testnet mode."""
         return cls.TRADING_MODE.lower() == 'testnet'
+    
+    @classmethod
+    def is_demo_mode(cls) -> bool:
+        """Check if application is running in demo mode."""
+        return cls.TRADING_MODE.lower() == 'demo'
+    
+    @classmethod
+    def is_live_mode(cls) -> bool:
+        """Check if application is running in live mode."""
+        return cls.TRADING_MODE.lower() == 'live'
     
     @classmethod
     def get_binance_base_url(cls) -> str:

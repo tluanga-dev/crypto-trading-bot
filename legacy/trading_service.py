@@ -11,7 +11,7 @@ from loguru import logger
 
 # Import our core modules
 from config import Config
-from binance_client import BinanceClient
+from demo_client import BinanceClientFactory
 from data_analyzer import DataAnalyzer
 from strategy import StrategyManager
 from portfolio import Portfolio, Position
@@ -33,7 +33,7 @@ class TradingService:
     
     def __init__(self, initial_balance: float = 10000.0):
         self.initial_balance = initial_balance
-        self.binance_client: Optional[BinanceClient] = None
+        self.binance_client = None
         self.data_analyzer = DataAnalyzer()
         self.strategy_manager = StrategyManager()
         self.portfolio = Portfolio(initial_balance)
@@ -68,7 +68,7 @@ class TradingService:
             Config.validate_required_config()
             
             # Initialize Binance client
-            self.binance_client = BinanceClient()
+            self.binance_client = BinanceClientFactory.create_client()
             
             # Test connection
             account_info = self.binance_client.get_account_info()

@@ -10,6 +10,7 @@ from enum import Enum
 
 class TradingMode(str, Enum):
     """Trading mode enumeration."""
+    DEMO = "demo"
     TESTNET = "testnet"
     LIVE = "live"
 
