@@ -23,7 +23,19 @@ source venv/bin/activate
 pip install -r requirements.txt
 ```
 
-### Application Usage
+### FastAPI Server Usage
+```bash
+# Start the API server locally
+uvicorn api_server:app --reload --host 0.0.0.0 --port 8000
+
+# Start with production settings
+uvicorn api_server:app --host 0.0.0.0 --port 8000
+
+# Railway deployment (automatic)
+# Railway will use: uvicorn api_server:app --host 0.0.0.0 --port $PORT
+```
+
+### CLI Usage (Legacy)
 ```bash
 # Analyze market for a specific symbol
 python main.py analyze --symbol BTCUSDT --strategy rsi_macd
@@ -53,14 +65,18 @@ python -m pytest -v  # verbose output
 
 ```
 crypto_trade/
-├── main.py              # Main application entry point with CLI commands
+├── api_server.py        # FastAPI REST API server with WebSocket support
+├── main.py              # CLI application (legacy)
 ├── config.py            # Centralized configuration management
 ├── binance_client.py    # Binance API wrapper with error handling
 ├── data_analyzer.py     # Technical analysis and market data processing
 ├── strategy.py          # Trading strategy implementations and framework
 ├── portfolio.py         # Portfolio management and risk management
 ├── logger.py            # Centralized logging configuration
-├── requirements.txt     # Python dependencies
+├── requirements.txt     # Python dependencies with FastAPI
+├── Procfile             # Railway deployment configuration
+├── railway.json         # Railway deployment settings
+├── runtime.txt          # Python version specification
 ├── .env.example         # Environment variables template
 ├── .gitignore          # Git ignore rules
 ├── venv/               # Python virtual environment (excluded from version control)
@@ -69,12 +85,62 @@ crypto_trade/
 
 ## Core Components
 
-- **TradingBot**: Main bot class that orchestrates all components
+- **TradingBotAPI**: FastAPI server class that orchestrates all components
+- **WebSocketManager**: Manages real-time WebSocket connections for live updates
 - **BinanceClient**: Handles all Binance API interactions with error handling
 - **DataAnalyzer**: Processes market data and calculates technical indicators
 - **StrategyManager**: Manages multiple trading strategies (RSI+MACD, Bollinger Bands)
 - **Portfolio**: Tracks positions, calculates PnL, and manages risk
 - **Config**: Centralized configuration using environment variables
+
+## REST API Endpoints
+
+### Market Analysis
+- `GET /api/analyze/{symbol}` - Analyze market data for a symbol
+- `GET /health` - Health check endpoint
+
+### Portfolio Management
+- `GET /api/portfolio` - Get portfolio status and metrics
+- `GET /api/positions` - Get all open positions
+
+### Trading Operations
+- `POST /api/positions` - Open new position
+- `DELETE /api/positions/{symbol}` - Close position
+
+### Strategy Management
+- `GET /api/strategies` - List available strategies
+- `POST /api/strategies/{strategy_name}` - Set active strategy
+
+### Real-time WebSocket
+- `WS /ws/live-data` - Real-time market data and portfolio updates
+
+## API Usage Examples
+
+### Analyze Market
+```bash
+curl -X GET "https://your-railway-app.railway.app/api/analyze/BTCUSDT"
+```
+
+### Get Portfolio
+```bash
+curl -X GET "https://your-railway-app.railway.app/api/portfolio"
+```
+
+### Open Position
+```bash
+curl -X POST "https://your-railway-app.railway.app/api/positions" \
+  -H "Content-Type: application/json" \
+  -d '{"symbol": "BTCUSDT", "strategy": "rsi_macd"}'
+```
+
+### WebSocket Connection (JavaScript)
+```javascript
+const ws = new WebSocket('wss://your-railway-app.railway.app/ws/live-data');
+ws.onmessage = (event) => {
+    const data = JSON.parse(event.data);
+    console.log('Received:', data);
+};
+```
 
 ## Security Considerations
 
@@ -94,10 +160,27 @@ crypto_trade/
 
 ## Setup Instructions
 
+### Local Development
 1. Copy `.env.example` to `.env` and configure with your Binance API credentials
 2. Ensure TRADING_MODE is set to "testnet" for development
 3. Install dependencies: `pip install -r requirements.txt`
-4. Run analysis: `python main.py analyze --symbol BTCUSDT`
+4. Start API server: `uvicorn api_server:app --reload --host 0.0.0.0 --port 8000`
+5. Access API documentation: `http://localhost:8000/docs`
+
+### Railway.com Deployment
+1. Connect your GitHub repository to Railway
+2. Set environment variables in Railway dashboard:
+   - `BINANCE_API_KEY`
+   - `BINANCE_SECRET_KEY`
+   - `TRADING_MODE=testnet`
+   - Other variables from `.env.example`
+3. Railway will automatically deploy using `Procfile` and `railway.json`
+4. Your API will be available at: `https://your-app-name.railway.app`
+
+### Static IP for Binance
+- Railway provides static IP addresses automatically
+- Add Railway's IP to your Binance API whitelist
+- Configure API restrictions in Binance for security
 
 ## Technical Indicators Used
 
